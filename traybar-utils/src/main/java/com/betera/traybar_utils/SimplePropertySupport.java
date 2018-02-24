@@ -1,5 +1,6 @@
 package com.betera.traybar_utils;
 
+import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,7 +39,12 @@ public class SimplePropertySupport {
 
 	public void setProperty(ScriptEntry aScriptEntry) {
 		setProperty(Props.SCRIPT_PREFIX + "_" + aScriptEntry.getName() + "_UseStdout", aScriptEntry.isUseStdout());
+		setProperty(Props.SCRIPT_PREFIX + "_" + aScriptEntry.getName() + "_AppendToStdout",
+				aScriptEntry.isAppendToStdout());
+		setProperty(Props.SCRIPT_PREFIX + "_" + aScriptEntry.getName() + "_Stdout", aScriptEntry.getStdOut());
 		setProperty(Props.SCRIPT_PREFIX + "_" + aScriptEntry.getName() + "_Batch", aScriptEntry.getBatch());
+		setProperty(Props.SCRIPT_PREFIX + "_" + aScriptEntry.getName() + "_LastExecution",
+				aScriptEntry.getLastExecution());
 	}
 
 	public void setProperty(Map<String, ScriptEntry> aMap) {
@@ -64,14 +70,41 @@ public class SimplePropertySupport {
 
 	public ScriptEntry getScriptEntryProperty(String aName) {
 		String tempBatch = getStringProperty(Props.SCRIPT_PREFIX + "_" + aName + "_Batch");
+		String tempStdOut = getStringProperty(Props.SCRIPT_PREFIX + "_" + aName + "_StdOut");
+		String tempLast = getStringProperty(Props.SCRIPT_PREFIX + "_" + aName + "_LastExecution");
 		boolean tempUseStdout = getBoolProperty(Props.SCRIPT_PREFIX + "_" + aName + "_UseStdout", false);
+		boolean tempAppendToStdout = getBoolProperty(Props.SCRIPT_PREFIX + "_" + aName + "_AppendToStdout", true);
 
 		ScriptEntry entry = new ScriptEntry();
 		entry.setName(aName);
 		entry.setBatch(tempBatch);
+		entry.setStdOut(tempStdOut);
+		entry.setAppendToStdout(tempAppendToStdout);
 		entry.setUseStdout(tempUseStdout);
+		entry.setLastExecution(tempLast);
 
 		return entry;
+	}
+
+	public void setProperty(String aKey, Dimension aDim) {
+		prop.setProperty(aKey, aDim.width + "," + aDim.height);
+	}
+
+	public Dimension getDimensionProperty(String aKey) {
+		String temp = getStringProperty(aKey);
+
+		Dimension dim = new Dimension(Integer.parseInt(temp.split(",")[0].trim()), Integer.parseInt(temp.split(",")[1]
+				.trim()));
+
+		return dim;
+	}
+
+	public Dimension getDimensionProperty(String aKey, Dimension aDefault) {
+		if (!prop.containsKey(aKey)) {
+			return aDefault;
+		}
+
+		return getDimensionProperty(aKey);
 	}
 
 	public void setProperty(String aKey, String aValue) {

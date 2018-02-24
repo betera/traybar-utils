@@ -3,7 +3,11 @@ package com.betera.traybar_utils;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.CheckboxMenuItem;
-import java.awt.GridLayout;
+import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Image;
+import java.awt.Insets;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
 import java.awt.Rectangle;
@@ -13,17 +17,26 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+
+import com.betera.traybar_utils.actions.AbstractUIAction;
+import com.betera.traybar_utils.actions.PlayAction;
+import com.betera.traybar_utils.actions.SettingsAction;
 
 public class TraybarUtilsApp {
 
@@ -36,6 +49,8 @@ public class TraybarUtilsApp {
 	protected final static String configFile = "config.ini";
 
 	protected Map<String, ScriptEntry> scripts;
+
+	protected static Map<String, ImageIcon> cache = new HashMap<String, ImageIcon>();
 
 	// ///////////////////// FRAME ///////////////////////
 	protected JFrame frame;
@@ -61,6 +76,45 @@ public class TraybarUtilsApp {
 	protected void initUI() {
 		initTray();
 		initAppFrame();
+		initScriptUI();
+	}
+
+	protected JPanel createScriptPanel(ScriptEntry anEntry) {
+		JPanel panel = new JPanel();
+		panel.setLayout(new BorderLayout());
+
+		JButton btnPlay = createButton(new PlayAction(this, anEntry));
+		panel.add(btnPlay, BorderLayout.EAST);
+		panel.add(new JLabel(anEntry.getName()), BorderLayout.CENTER);
+
+		return panel;
+	}
+
+	protected JButton createButton(AbstractUIAction anAction) {
+		JButton btn = new JButton();
+
+		btn.setContentAreaFilled(false);
+		btn.setBorderPainted(false);
+
+		btn.setAction(anAction);
+
+		btn.setSize(props.getDimensionProperty(Props.BUTTON_SIZE, new Dimension(24, 24)));
+		btn.setIcon(getImage(anAction.getImageName(), btn.getSize()));
+		btn.setPreferredSize(btn.getSize());
+		props.setProperty(Props.BUTTON_SIZE, btn.getSize());
+
+		return btn;
+	}
+
+	protected void initScriptUI() {
+		GridBagConstraints c = new GridBagConstraints();
+		c.fill = GridBagConstraints.BOTH;
+		c.insets = new Insets(2, 2, 2, 2);
+		c.weightx = 1.0;
+
+		for (ScriptEntry entry : scripts.values()) {
+			centerPanel.add(createScriptPanel(entry), c);
+		}
 	}
 
 	protected void initScripts() {
@@ -87,7 +141,7 @@ public class TraybarUtilsApp {
 		frame.setUndecorated(props.getBoolProperty(Props.FRAME_DECORATED, false));
 		frame.setBounds(props.getRectangleProperty(Props.FRAME_BOUNDS, new Rectangle(0, 0, 400, 200)));
 
-		btnSettings = new JButton(getImage("settings"));
+		btnSettings = createButton(new SettingsAction(this));
 		btnSettings.setSize(32, 32);
 		btnSettings.setBorderPainted(false);
 		btnSettings.setContentAreaFilled(false);
@@ -97,10 +151,11 @@ public class TraybarUtilsApp {
 		eastPanel.add(btnSettings, BorderLayout.EAST);
 
 		centerPanel = new JPanel();
-		centerPanel.setLayout(new GridLayout());
+		centerPanel.setLayout(new GridBagLayout());
 
 		frame.getContentPane().setLayout(new BorderLayout());
 		frame.getContentPane().add(eastPanel, BorderLayout.EAST);
+		frame.getContentPane().add(centerPanel, BorderLayout.CENTER);
 
 		frame.setVisible(true);
 	}
@@ -165,9 +220,42 @@ public class TraybarUtilsApp {
 		});
 	}
 
-	protected ImageIcon getImage(String aName) {
+	public Dimension getButtonSize() {
+		return props.getDimensionProperty(Props.BUTTON_SIZE, new Dimension(24, 24));
+	}
+
+	public ImageIcon getImage(String aName, Dimension aSize) {
+		String key = aName + "#" + aSize.width + "," + aSize.height;
+		if (cache.containsKey(key)) {
+			return cache.get(key);
+		}
+
 		try {
-			return new ImageIcon(ImageIO.read(this.getClass().getResourceAsStream("images/" + aName + ".png")));
+			Image image = ImageIO.read(this.getClass().getResourceAsStream("images/" + aName + ".png"))
+					.getScaledInstance(aSize.width, aSize.height, Image.SCALE_SMOOTH);
+
+			ImageIcon icon = new ImageIcon(image);
+
+			cache.put(key, icon);
+			return icon;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return null;
+		}
+
+	}
+
+	public ImageIcon getImage(String aName) {
+
+		if (cache.containsKey(aName)) {
+			return cache.get(aName);
+		}
+
+		try {
+			ImageIcon icon = new ImageIcon(
+					ImageIO.read(this.getClass().getResourceAsStream("images/" + aName + ".png")));
+			cache.put(aName, icon);
+			return icon;
 		} catch (IOException e) {
 			return null;
 		}
@@ -185,6 +273,10 @@ public class TraybarUtilsApp {
 				new TraybarUtilsApp();
 			}
 		});
+	}
+
+	public void updateScriptLastExecution(ScriptEntry entry, Date date) {
+		entry.setLastExecution(new SimpleDateFormat("mm-dd hh:MM:ss").format(date));
 	}
 
 }

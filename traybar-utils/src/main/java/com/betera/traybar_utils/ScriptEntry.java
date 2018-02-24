@@ -5,10 +5,9 @@ public class ScriptEntry {
 	private String name;
 	private String batch;
 	private boolean useStdout;
-
-	public String toString() {
-		return "\"" + getName() + "\",\"" + getBatch() + "\"," + (isUseStdout() ? "true" : "false");
-	}
+	private String stdOut;
+	private boolean appendToStdout;
+	private String lastExecution;
 
 	public String getName() {
 		return name;
@@ -32,6 +31,30 @@ public class ScriptEntry {
 
 	public void setUseStdout(boolean useStdout) {
 		this.useStdout = useStdout;
+	}
+
+	public String getStdOut() {
+		return stdOut;
+	}
+
+	public void setStdOut(String stdOut) {
+		this.stdOut = stdOut;
+	}
+
+	public boolean isAppendToStdout() {
+		return appendToStdout;
+	}
+
+	public void setAppendToStdout(boolean appendToStdout) {
+		this.appendToStdout = appendToStdout;
+	}
+
+	public String getLastExecution() {
+		return lastExecution;
+	}
+
+	public void setLastExecution(String lastExecution) {
+		this.lastExecution = lastExecution;
 	}
 
 }
