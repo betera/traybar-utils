@@ -1,23 +1,32 @@
 package com.betera.traybar_utils;
 
+import info.clearthought.layout.TableLayout;
+
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.CheckboxMenuItem;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Image;
-import java.awt.Insets;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
+import java.awt.Window.Type;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentEvent;
+import java.awt.event.ComponentListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.awt.image.BufferedImage;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -27,6 +36,7 @@ import java.util.Map;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -35,10 +45,12 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
 import com.betera.traybar_utils.actions.AbstractUIAction;
+import com.betera.traybar_utils.actions.AddScriptAction;
+import com.betera.traybar_utils.actions.ContextAction;
 import com.betera.traybar_utils.actions.PlayAction;
 import com.betera.traybar_utils.actions.SettingsAction;
 
-public class TraybarUtilsApp {
+public class TraybarUtilsApp implements ComponentListener {
 
 	protected TrayIcon trayIcon;
 	protected SystemTray tray;
@@ -56,11 +68,18 @@ public class TraybarUtilsApp {
 	protected JFrame frame;
 
 	protected JPanel eastPanel;
+	protected JPanel northPanel;
 	protected JPanel centerPanel;
 
 	protected JButton btnSettings;
-
+	protected JButton btnAdd;
 	// ///////////////////// END FRAME ///////////////////////
+
+	// ///////////////////// UI SETTINGS ///////////////////////
+	protected Font font;
+
+	protected int fontSize;
+	protected String fontFamily;
 
 	public TraybarUtilsApp() {
 		initProperties();
@@ -75,17 +94,49 @@ public class TraybarUtilsApp {
 
 	protected void initUI() {
 		initTray();
-		initAppFrame();
-		initScriptUI();
+		initFrame();
+	}
+
+	protected class BoundLabel extends JLabel implements PropertyChangeListener {
+
+		protected Boundable bound;
+
+		protected String property;
+
+		public BoundLabel(String aValue, Boundable aBound, String aProperty) {
+			this.bound = aBound;
+			this.property = aProperty;
+			bound.addPropertyChangeListener(this);
+			setText(aValue);
+		}
+
+		public void propertyChange(PropertyChangeEvent evt) {
+			if (evt.getPropertyName().equals(property)) {
+				setText(evt.getNewValue() + "");
+			}
+		}
+
+		@Override
+		protected void finalize() throws Throwable {
+			if (bound != null) {
+				bound.removePropertyChangeListener(this);
+			}
+			super.finalize();
+		}
+
 	}
 
 	protected JPanel createScriptPanel(ScriptEntry anEntry) {
 		JPanel panel = new JPanel();
-		panel.setLayout(new BorderLayout());
+		int size = props.getDimensionProperty(Props.BUTTON_SIZE, new Dimension(24, 24)).width;
+		panel.setLayout(new TableLayout(new double[][] {
+				{ TableLayout.FILL, 100 * (font.getSize() / 10.0), size + 4, size + 4 }, { 32.0 } }));
 
-		JButton btnPlay = createButton(new PlayAction(this, anEntry));
-		panel.add(btnPlay, BorderLayout.EAST);
-		panel.add(new JLabel(anEntry.getName()), BorderLayout.CENTER);
+		panel.add(createButton(new PlayAction(this, anEntry)), "2, 0");
+		panel.add(createButton(new ContextAction(this, anEntry)), "3, 0");
+
+		panel.add(new BoundLabel(anEntry.getName(), anEntry, "name"), "0, 0");
+		panel.add(new BoundLabel(anEntry.getLastExecution(), anEntry, "lastExecution"), "1, 0");
 
 		return panel;
 	}
@@ -108,13 +159,19 @@ public class TraybarUtilsApp {
 
 	protected void initScriptUI() {
 		GridBagConstraints c = new GridBagConstraints();
-		c.fill = GridBagConstraints.BOTH;
-		c.insets = new Insets(2, 2, 2, 2);
+		c.anchor = GridBagConstraints.NORTH;
 		c.weightx = 1.0;
+		c.weighty = 0.0;
+		c.fill = GridBagConstraints.HORIZONTAL;
 
+		JPanel tempPanel = new JPanel();
+		tempPanel.setLayout(new GridBagLayout());
 		for (ScriptEntry entry : scripts.values()) {
-			centerPanel.add(createScriptPanel(entry), c);
+			tempPanel.add(createScriptPanel(entry), c);
 		}
+
+		centerPanel.setLayout(new BorderLayout());
+		centerPanel.add(tempPanel, BorderLayout.NORTH);
 	}
 
 	protected void initScripts() {
@@ -127,42 +184,64 @@ public class TraybarUtilsApp {
 
 	protected void storeProperties() {
 		props.setProperty(Props.FRAME_BOUNDS, frame.getBounds());
+		props.setProperty(Props.FONT_SIZE, font.getSize());
+		props.setProperty(Props.FONT_FAMILY, font.getFamily());
 		storeScriptProperties();
 		props.save();
 	}
 
-	protected void initAppFrame() {
+	protected void initFrame() {
 		if (frame != null) {
 			frame.dispose();
 		}
 
+		font = new Font(props.getStringProperty("fontFamily", "Helvetica"), Font.PLAIN, props.getIntProperty(
+				"fontSize", 12));
 		frame = new JFrame();
+
+		frame.addComponentListener(this);
+
+		frame.setType(Type.UTILITY);
 
 		frame.setUndecorated(props.getBoolProperty(Props.FRAME_DECORATED, false));
 		frame.setBounds(props.getRectangleProperty(Props.FRAME_BOUNDS, new Rectangle(0, 0, 400, 200)));
 
-		btnSettings = createButton(new SettingsAction(this));
-		btnSettings.setSize(32, 32);
-		btnSettings.setBorderPainted(false);
-		btnSettings.setContentAreaFilled(false);
-
-		eastPanel = new JPanel();
-		eastPanel.setLayout(new BorderLayout());
-		eastPanel.add(btnSettings, BorderLayout.EAST);
+		northPanel = new JPanel();
+		northPanel.setLayout(new FlowLayout(FlowLayout.LEADING));
+		northPanel.add(createButton(new SettingsAction(this)));
+		northPanel.add(createButton(new AddScriptAction(this)));
 
 		centerPanel = new JPanel();
 		centerPanel.setLayout(new GridBagLayout());
 
 		frame.getContentPane().setLayout(new BorderLayout());
-		frame.getContentPane().add(eastPanel, BorderLayout.EAST);
+		frame.getContentPane().add(northPanel, BorderLayout.NORTH);
 		frame.getContentPane().add(centerPanel, BorderLayout.CENTER);
 
+		initScriptUI();
+		fontChanged(frame.getRootPane());
+
+		frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+		frame.setAlwaysOnTop(true);
 		frame.setVisible(true);
+
+	}
+
+	protected void fontChanged(Container aContainer) {
+		if (aContainer instanceof JComponent) {
+			((JComponent) aContainer).setFont(font);
+		}
+
+		for (Component tempComp : aContainer.getComponents()) {
+			if (tempComp instanceof Container) {
+				fontChanged((Container) tempComp);
+			}
+		}
 	}
 
 	protected void setFrameDecoration(boolean aDecorated) {
 		props.setProperty(Props.FRAME_DECORATED, aDecorated);
-		initAppFrame();
+		initFrame();
 	}
 
 	protected void initTray() {
@@ -177,7 +256,7 @@ public class TraybarUtilsApp {
 
 		// Create a popup menu components
 		CheckboxMenuItem menuFrameDecorated = new CheckboxMenuItem("Set frame decorated");
-		menuFrameDecorated.setState(props.getBoolProperty(Props.FRAME_DECORATED));
+		menuFrameDecorated.setState(!props.getBoolProperty(Props.FRAME_DECORATED));
 		MenuItem exitItem = new MenuItem("Exit");
 
 		// Add components to popup menu
@@ -213,11 +292,15 @@ public class TraybarUtilsApp {
 
 		exitItem.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
-				tray.remove(trayIcon);
-				storeProperties();
-				System.exit(0);
+				exit();
 			}
 		});
+	}
+
+	protected void exit() {
+		tray.remove(trayIcon);
+		storeProperties();
+		System.exit(0);
 	}
 
 	public Dimension getButtonSize() {
@@ -276,7 +359,23 @@ public class TraybarUtilsApp {
 	}
 
 	public void updateScriptLastExecution(ScriptEntry entry, Date date) {
-		entry.setLastExecution(new SimpleDateFormat("mm-dd hh:MM:ss").format(date));
+		entry.setLastExecution(new SimpleDateFormat("dd-MM HH:mm:ss").format(date));
+	}
+
+	public void componentResized(ComponentEvent e) {
+		storeProperties();
+	}
+
+	public void componentMoved(ComponentEvent e) {
+		storeProperties();
+	}
+
+	public void componentShown(ComponentEvent e) {
+		storeProperties();
+	}
+
+	public void componentHidden(ComponentEvent e) {
+		storeProperties();
 	}
 
 }

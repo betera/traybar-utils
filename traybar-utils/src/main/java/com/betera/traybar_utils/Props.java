@@ -6,6 +6,9 @@ public class Props {
 	public static final String FRAME_DECORATED = "frameDecorated";
 	public static final String BUTTON_SIZE = "buttonSize";
 
+	public static final String FONT_SIZE = "fontSize";
+	public static final String FONT_FAMILY = "fontFamily";
+
 	public static final String SCRIPT_PREFIX = "script";
 
 }
